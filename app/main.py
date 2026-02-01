@@ -6,6 +6,4 @@ app = FastAPI(title="PrimeModel AI Engine")
 app.include_router(health.router, prefix="/health", tags=["Health"])
 app.include_router(predict.router, prefix="/predict", tags=["Prediction"])
 
-@app.get("/")
-def root():
-    return {"status": "PrimeModel running"}
+
