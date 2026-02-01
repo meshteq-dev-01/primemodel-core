@@ -4,11 +4,36 @@ import math
 
 router = APIRouter()
 
+PIPELINE_TEMPLATE = {
+    "required_measurements": ["pressure", "temperature", "wall_thickness"]
+}
+
+PUMP_TEMPLATE = {
+    "required_measurements": ["vibration_rms", "bearing_temp", "motor_current"]
+}
+
+DMA_TEMPLATE = {
+    "required_measurements": ["flow_rate", "pressure_in", "pressure_out"]
+}
+
 @router.post("/anomaly", response_model=AnomalyResponse)
 def predict_anomaly(payload: AnomalyRequest):
+    asset_type = payload.asset_type.lower()
+    if asset_type == "pipeline":
+        template = PIPELINE_TEMPLATE
+    elif asset_type == "pump":
+        template = PUMP_TEMPLATE
+    elif asset_type == "dma":
+        template = DMA_TEMPLATE
+    else:
+        template = {"required_measurements": []}
+
+    contributing_factors = []
     values = []
-    for value in payload.measurements.values():
+    for key in template["required_measurements"]:
+        value = payload.measurements.get(key)
         if isinstance(value, (int, float)) and not isinstance(value, bool):
+            contributing_factors.append(key)
             values.append(float(value))
 
     if not values:
@@ -35,10 +60,21 @@ def predict_anomaly(payload: AnomalyRequest):
         elif confidence > 1.0:
             confidence = 1.0
 
+    if asset_type == "pipeline":
+        explanation = "Pipeline pressure and wall thickness behavior indicates stability." if not is_anomaly else "Pipeline pressure or wall thickness deviation indicates potential anomaly."
+    elif asset_type == "pump":
+        explanation = "Pump vibration and bearing condition are within expected range." if not is_anomaly else "Pump vibration or bearing condition shows significant deviation."
+    elif asset_type == "dma":
+        explanation = "DMA flow and pressure balance are within expected range." if not is_anomaly else "DMA flow and pressure balance show significant deviation."
+    else:
+        explanation = "Asset behavior is within expected operating range." if not is_anomaly else "Anomaly detected due to significant deviation in key measurements."
+
     return {
         "anomaly_score": anomaly_score,
         "is_anomaly": is_anomaly,
-        "confidence": confidence
+        "confidence": confidence,
+        "explanation": explanation,
+        "contributing_factors": contributing_factors
     }
 
 @router.post("/rul", response_model=RULResponse)
@@ -61,7 +97,8 @@ def predict_rul(payload: RULRequest):
 
     return {
         "estimated_rul_days": estimated_rul_days,
-        "confidence": confidence
+        "confidence": confidence,
+        "explanation": f"RUL computed using design life of {design_life_days} days, age_days of {payload.age_days}, and usage_rate of {payload.usage_rate}."
     }
 
 @router.get("/model/info", response_model=ModelInfoResponse)
