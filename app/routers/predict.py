@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 from app.schemas.prediction import AnomalyRequest, AnomalyResponse, RULRequest, RULResponse, ModelInfoResponse
+from app.db.database import save_prediction
 import math
 
 router = APIRouter()
@@ -69,13 +70,15 @@ def predict_anomaly(payload: AnomalyRequest):
     else:
         explanation = "Asset behavior is within expected operating range." if not is_anomaly else "Anomaly detected due to significant deviation in key measurements."
 
-    return {
+    response = {
         "anomaly_score": anomaly_score,
         "is_anomaly": is_anomaly,
         "confidence": confidence,
         "explanation": explanation,
         "contributing_factors": contributing_factors
     }
+    save_prediction(payload.asset_id, payload.asset_type, "anomaly", response)
+    return response
 
 @router.post("/rul", response_model=RULResponse)
 def predict_rul(payload: RULRequest):
@@ -95,11 +98,13 @@ def predict_rul(payload: RULRequest):
         elif confidence > 1.0:
             confidence = 1.0
 
-    return {
+    response = {
         "estimated_rul_days": estimated_rul_days,
         "confidence": confidence,
         "explanation": f"RUL computed using design life of {design_life_days} days, age_days of {payload.age_days}, and usage_rate of {payload.usage_rate}."
     }
+    save_prediction(payload.asset_id, "unknown", "rul", response)
+    return response
 
 @router.get("/model/info", response_model=ModelInfoResponse)
 def model_info():
