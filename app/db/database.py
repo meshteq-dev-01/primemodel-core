@@ -2,13 +2,30 @@ import sqlite3
 import json
 from datetime import datetime
 import logging
+import os
 
-DB_PATH = "primemodel.db"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+OLD_DB_PATH = os.path.abspath(os.path.join(BASE_DIR, "..", "..", "primemodel.db"))
+DB_PATH = os.path.abspath(os.path.join(BASE_DIR, "..", "..", "data", "primemodel.db"))
 
 logging.basicConfig(level=logging.INFO)
 
+def _ensure_db_path():
+    data_dir = os.path.dirname(DB_PATH)
+    try:
+        os.makedirs(data_dir, exist_ok=True)
+    except Exception as exc:
+        logging.exception("Failed to create data directory: %s", exc)
+
+    try:
+        if os.path.exists(OLD_DB_PATH) and not os.path.exists(DB_PATH):
+            os.replace(OLD_DB_PATH, DB_PATH)
+    except Exception as exc:
+        logging.exception("Failed to move database file: %s", exc)
+
 def _init_db():
     try:
+        _ensure_db_path()
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
         cursor.execute(
